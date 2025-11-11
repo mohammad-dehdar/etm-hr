@@ -1,43 +1,53 @@
-version: '3.8'
-
 services:
   db:
-    image: postgres:15
+    image: postgres:15-alpine
+    container_name: etmhr-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: peoplepulse
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: etmhr
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d etmhr']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/peoplepulse
-      - AUTH_SECRET=your-secret-key-here
-      - NODE_ENV=production
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: etmhr-app
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./uploads:/app/uploads
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/etmhr
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: devsecret_change_me
+      SEED: 'true'
+      NODE_ENV: production
+    # Optional development volume
+    # volumes:
+    #   - .:/app
+    # command: sh -c "npx prisma migrate dev && npm run dev"
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
-      - redis_data:/data
+      - redis-data:/data
 
 volumes:
-  postgres_data:
-  redis_data:
+  db-data:
+    driver: local
+  redis-data:
+    driver: local

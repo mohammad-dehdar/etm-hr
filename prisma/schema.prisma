@@ -22,6 +22,7 @@ model User {
   testAttempts  TestAttempt[]
   notifications Notification[]
   auditLogs     AuditLog[]
+  formResponses FormResponse[]
 
   @@index([email])
   @@index([role])
