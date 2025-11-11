@@ -6,6 +6,8 @@ import { compare } from 'bcryptjs';
 import type { Role } from '@prisma/client';
 
 export const authOptions: NextAuthOptions = {
+  // Ensure secret is defined in production builds (avoid build-time failures)
+  secret: process.env.NEXTAUTH_SECRET || 'set-a-strong-secret-in-production',
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: 'jwt',
