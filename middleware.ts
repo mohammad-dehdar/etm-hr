@@ -1,37 +1,36 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getToken } from 'next-auth/jwt'
-import { Role } from '@prisma/client'
+import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
 export async function middleware(request: NextRequest) {
-  const token = await getToken({ req: request })
-  const { pathname } = request.nextUrl
+  const token = await getToken({ req: request });
+  const { pathname } = request.nextUrl;
 
   // Public routes
   if (pathname === '/login' || pathname === '/register' || pathname === '/') {
     if (token && pathname === '/login') {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-    return NextResponse.next()
+    return NextResponse.next();
   }
 
   // Protected routes
   if (!token) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // Admin routes
   if (pathname.startsWith('/admin')) {
-    if (token.role !== Role.ADMIN) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+    if (token.role !== 'ADMIN') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
 
   // Dashboard routes (authenticated users only)
   if (pathname.startsWith('/dashboard')) {
-    return NextResponse.next()
+    return NextResponse.next();
   }
 
-  return NextResponse.next()
+  return NextResponse.next();
 }
 
 export const config = {
@@ -46,4 +45,4 @@ export const config = {
      */
     '/((?!api/auth|_next/static|_next/image|favicon.ico|public).*)',
   ],
-}
+};
