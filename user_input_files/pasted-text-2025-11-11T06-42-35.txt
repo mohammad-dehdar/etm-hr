@@ -1,0 +1,304 @@
+You are a senior full‑stack AI web generator. Build a production‑ready HR web app named “PeoplePulse” that runs on Next.js (App Router) with both frontend and backend in one repository.
+
+GOAL
+Create an internal company app where employees complete rich profiles and take psychology tests; admins manage forms/tests and get automated birthday notifications. Two roles: ADMIN and EMPLOYEE.
+
+OBJECTIVES
+1) Profile collection via step-by-step wizard + dynamic, admin-defined forms.
+2) Psychology tests (multi‑page Likert etc.) with scoring and per‑user results.
+3) Daily birthday notifications to admins (in‑app + email; Slack optional) based on birth dates, with timezone handling and leap‑year rules.
+4) Clean RBAC, audit logs, and privacy controls for PII.
+5) Ship a runnable monorepo with DB migrations, seed data, tests, and clear run docs.
+
+NON‑FUNCTIONAL REQUIREMENTS
+- TypeScript everywhere. Accessibility (ARIA), responsive, and RTL-ready.
+- Secure by default (RBAC on server, input validation, rate limiting, audit logs).
+- Configuration via ENV. One‑click deploy to Vercel (or Node), PostgreSQL managed.
+- Good DX: ESLint, Prettier, Husky pre‑commit, basic unit + e2e tests.
+
+TECH STACK
+- Next.js (App Router, Server Components, Server Actions), React 18, TypeScript.
+- Auth.js (NextAuth) with credentials or SSO placeholder; Prisma adapter.
+- Database: PostgreSQL + Prisma ORM.
+- UI: Tailwind CSS + shadcn/ui + Radix primitives.
+- Forms: React Hook Form + Zod (same schema on client/server).
+- Jobs/Scheduler: Vercel Cron (or node‑cron fallback) for daily digests.
+- Email: Nodemailer (Ethereal for dev), {SENDGRID or SES} for prod via ENV.
+- Optional Slack: Incoming Webhook via ENV.
+- Dates: date‑fns / date‑fns‑tz. Optional Jalali view via dayjs + jalaliday.
+- File storage: S3‑compatible (S3/MinIO) with presigned uploads.
+
+ROLES & ACCESS
+- EMPLOYEE: can view/edit their own profile, fill admin forms, take tests, see their own test results & notifications.
+- ADMIN: can manage users, roles, departments; create/edit versioned form definitions; create/edit versioned psychology tests; see aggregate reports; receive birthday digests.
+
+DATA MODEL (Prisma) — implement exactly and add indexes where sensible
+---------------------------------------------------------
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String?
+  role          Role     @default(EMPLOYEE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profile       Profile?
+  testAttempts  TestAttempt[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+model Profile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  firstName     String
+  lastName      String
+  nationalId    String?  @unique
+  birthDate     DateTime?
+  phone         String?
+  jobTitle      String?
+  department    String?
+  managerId     String?
+  skills        Json?
+  socials       Json?
+  documents     Json?
+  completion    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model FormDefinition {
+  id        String   @id @default(cuid())
+  name      String
+  schema    Json
+  version   Int      @default(1)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model FormResponse {
+  id        String   @id @default(cuid())
+  formId    String
+  userId    String
+  answers   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  form      FormDefinition @relation(fields: [formId], references: [id])
+  user      User           @relation(fields: [userId], references: [id])
+
+  @@unique([formId, userId])
+}
+
+model PsychTest {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String?
+  config      Json
+  version     Int      @default(1)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model TestAttempt {
+  id          String   @id @default(cuid())
+  testId      String
+  userId      String
+  startedAt   DateTime @default(now())
+  submittedAt DateTime?
+  answers     Json?
+  score       Json?
+  status      AttemptStatus @default(IN_PROGRESS)
+
+  test        PsychTest @relation(fields: [testId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  SCORED
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model BirthdayDigest {
+  id        String   @id @default(cuid())
+  runDate   DateTime
+  payload   Json
+  channel   String
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  actorRole Role?
+  action    String
+  entity    String?
+  entityId  String?
+  diff      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id])
+}
+---------------------------------------------------------
+
+DYNAMIC FORM & TEST ENGINE
+- Admin‑editable JSON schemas stored in FormDefinition.schema and PsychTest.config.
+- Provide a fully working Form Builder UI (drag/drop or simple editor) supporting:
+  field types = text, textarea, number, date, select, multiselect, toggle, file, richtext, address.
+  per‑field: required, placeholder, helpText, validation (Zod), visibleIf conditions.
+- Provide a Test Builder UI supporting pages, questions, Likert scales, reverse scoring, dimension mapping.
+- Implement a scoring utility:
+  - reverse scoring via reverseMax
+  - dimension sums → normalized optional bands (low/med/high)
+- Include two seed tests (e.g., “Teamwork & Collaboration”, “Stress Tolerance”) with Likert examples.
+- Show a disclaimer before any test: “Not a clinical tool; workplace‑fit insights only.”
+
+BIRTHDAY NOTIFICATIONS
+- Daily cron at {CRON_LOCAL_HOUR} in timezone {ORG_TZ}, compute birthdays for “today” and the next 7 days for a weekly section.
+- Leap‑year rule: if birthDate is Feb‑29, on non‑leap years notify on Feb‑28 (configurable).
+- Channels:
+  1) In‑app: create Notification records for ADMIN users with payload { date, list:[{userId, fullName, department}] }.
+  2) Email: send an HTML digest to {ADMIN_EMAILS_CSV}.
+  3) Optional Slack: post to {SLACK_WEBHOOK_URL} if set.
+- Provide an Admin setting page to toggle channels, set ORG_TZ and digest time.
+
+AUTH & MIDDLEWARE
+- Auth.js + Prisma adapter; credentials provider for MVP. Add role to JWT/session.
+- Middleware protects /admin/** for ADMIN only; /dashboard/** for authenticated users.
+- Protect server actions and API routes with server‑side RBAC checks.
+
+PAGES & ROUTES (App Router)
+- Public: /login, (optional) /register
+- Protected (/dashboard):
+  - /dashboard (cards: profile completion %, assigned tests, recent notifications)
+  - /dashboard/profile (wizard with tabs: Personal, Contact, Job, Skills, Socials, Documents)
+  - /dashboard/tests (list), /dashboard/tests/[slug] (runner: pages, progress, autosave)
+  - /dashboard/notifications
+- Admin (/admin):
+  - /admin/dashboard (KPIs: profile completion avg, tests completion rate, birthdays today/this week)
+  - /admin/users (list, filters, view profile, impersonate view‑only)
+  - /admin/forms (Form Builder CRUD + versioning)
+  - /admin/tests (Test Builder CRUD + versioning)
+  - /admin/reports (aggregates only; no sensitive per‑person test answers by default)
+  - /admin/settings (notifications, org timezone, email templates)
+- Global components: TopNav with role‑aware menu, Breadcrumbs, GuardedLayout.
+
+API CONTRACT (Route Handlers)
+- /api/auth/* (Auth.js)
+- /api/profile (GET current, PUT update; server validates with Zod; recompute completion)
+- /api/forms (GET list), /api/forms/[id]/response (GET/PUT by current user)
+- /api/tests (GET active), /api/tests/[slug]/attempt (POST create), /api/attempts/[id]/submit (POST submit → score → status=“SCORED”)
+- /api/admin/users (GET/POST/PUT; ADMIN only)
+- /api/admin/forms (CRUD), /api/admin/tests (CRUD)
+- /api/admin/reports (GET aggregates)
+- /api/admin/birthdays/today (GET digest preview)
+All handlers must perform server‑side RBAC and input validation.
+
+PROFILE COMPLETION
+- Field weights: photo(10), birthDate(5), phone(5), jobTitle(10), department(10), skills(10), socials(5), documents(10), core identity fields(35).
+- Show progress bar; store integer 0–100 in Profile.completion.
+
+VALIDATION & SECURITY
+- Zod schemas for all payloads. Strong rate‑limiting on auth & file endpoints.
+- Encrypt sensitive columns at rest (documented helper or pgcrypto note).
+- AuditLog for key actions (PROFILE_UPDATE, TEST_SUBMIT, USER_CREATE, SETTINGS_UPDATE).
+- Serve presigned S3 uploads; validate file type/size.
+
+I18N & RTL
+- Default locale “fa” with RTL support; keep DB timestamps UTC.
+- Provide a simple i18n wrapper (e.g., next‑intl or custom JSON) with FA strings for UI; code comments in EN.
+
+ENVIRONMENT VARIABLES
+- DATABASE_URL, AUTH_SECRET
+- EMAIL_FROM, EMAIL_SERVER (dev: Ethereal auto‑provision)
+- SENDGRID_API_KEY (optional)
+- ORG_TZ={e.g., Asia/Tehran}, CRON_LOCAL_HOUR={08}
+- ADMIN_EMAILS_CSV={admin1@...,admin2@...}
+- SLACK_WEBHOOK_URL (optional)
+- S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY
+
+SEED DATA
+- One ADMIN user {ADMIN_EMAIL} / {ADMIN_PASSWORD}
+- 5 EMPLOYEE users with realistic profiles (varying birth dates incl. Feb‑29)
+- 1 default FormDefinition “Profile v1” with sections & required fields
+- 2 PsychTest entries with configs and scoring
+- A few FormResponse samples
+
+TESTING
+- Unit: scoreTest utility; birthday selection including Feb‑29 edge; profile completion calculation.
+- E2E: Playwright flows — employee fills profile & takes a test; admin sees birthday digest and reports; RBAC negative tests.
+- Include GitHub Actions workflow for lint, type‑check, unit, and e2e (headed=false).
+
+JOB IMPLEMENTATION
+- Cron job (Vercel Cron or node‑cron script) runs daily at ORG_TZ/CRON_LOCAL_HOUR:
+  1) Compute birthdays today (MM‑DD match) + next 7 days weekly preview.
+  2) Create in‑app Notification rows for ADMINs.
+  3) Send email digest; if SLACK_WEBHOOK_URL present, post a card.
+  4) Persist a BirthdayDigest record with payload for audit.
+- Provide a pure function birthdaysFor(date, tz) used by both API preview and cron job.
+
+CODE SNIPPETS TO INCLUDE (files)
+- lib/scoreTest.ts (dimension sums + reverse scoring)
+- middleware.ts (Auth.js with ADMIN gating for /admin)
+- lib/birthdays.ts (timezone-aware computation with leap rule)
+- components/DynamicForm (renderer from JSON, with Zod resolver)
+- components/TestRunner (pages with progress, autosave)
+- emails/BirthdayDigest.tsx (React email template)
+
+UI/UX DETAILS
+- Clean dashboard cards, shadcn/ui for inputs. Use accessible components (Radix).
+- File uploader with drag‑drop and size/type validation; S3 presigned uploads.
+- Notifications bell with unread count; list view with read/unread toggle.
+
+REPORTS (Admin)
+- Profile completion average by department/team.
+- Tests completion rate and dimension aggregates (anonymized).
+- Birthday calendar (month grid).
+
+OUTPUT FORMAT
+- Return a full repository tree with:
+  - /app/** routes and layouts
+  - /prisma/schema.prisma + migrations + seed script
+  - /src/lib/** helpers, /components/**
+  - /emails/** templates
+  - /tests/unit/** and /tests/e2e/**
+  - .env.example with all keys
+  - Dockerfile + docker‑compose (db + app) OR clear dev instructions
+  - README.md: setup, migrate, seed, run dev/prod, configure cron
+- Provide a zip link (if supported) and print “How to run” steps in the README:
+  1) copy .env.example → .env  2) pnpm i  3) pnpm prisma migrate dev  4) pnpm prisma db seed  5) pnpm dev
+
+BEHAVIOUR RULES
+- Do not mock critical logic; implement working code for form/test rendering and scoring.
+- Keep private data secure; never expose other users’ answers to non‑admins.
+- Prefer server actions over client mutations where appropriate.
+- If any external service ENV is missing, degrade gracefully with in‑app only notifications and Ethereal email in dev.
+
+ACCEPTANCE CRITERIA (MVP)
+- Login as ADMIN → create/edit a form and a test → employees can complete them.
+- Employee sees profile completion %, can upload docs, take tests, and view their own scored result.
+- Admin dashboard shows “Birthdays Today” and receives an email digest after running the cron job.
+- All API routes enforce RBAC and Zod validation; basic unit and e2e tests pass; README explains setup clearly.
+
+Placeholders to replace:
+{ADMIN_EMAIL}, {ADMIN_PASSWORD}, {ORG_TZ}, {CRON_LOCAL_HOUR}
+
+Deliver the code now.

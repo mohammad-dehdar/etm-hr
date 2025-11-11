@@ -1,0 +1,178 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String?
+  role          Role     @default(EMPLOYEE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profile       Profile?
+  testAttempts  TestAttempt[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+model Profile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  firstName     String
+  lastName      String
+  nationalId    String?  @unique
+  birthDate     DateTime?
+  phone         String?
+  jobTitle      String?
+  department    String?
+  managerId     String?
+  skills        Json?
+  socials       Json?
+  documents     Json?
+  completion    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([department])
+  @@index([jobTitle])
+}
+
+model FormDefinition {
+  id        String   @id @default(cuid())
+  name      String
+  schema    Json
+  version   Int      @default(1)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  formResponses FormResponse[]
+
+  @@index([name])
+  @@index([active])
+  @@index([version])
+}
+
+model FormResponse {
+  id        String   @id @default(cuid())
+  formId    String
+  userId    String
+  answers   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  form      FormDefinition @relation(fields: [formId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([formId, userId])
+  @@index([formId])
+  @@index([userId])
+}
+
+model PsychTest {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String?
+  config      Json
+  version     Int      @default(1)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  testAttempts TestAttempt[]
+
+  @@index([slug])
+  @@index([active])
+  @@index([version])
+  @@index([title])
+}
+
+model TestAttempt {
+  id          String        @id @default(cuid())
+  testId      String
+  userId      String
+  startedAt   DateTime      @default(now())
+  submittedAt DateTime?
+  answers     Json?
+  score       Json?
+  status      AttemptStatus @default(IN_PROGRESS)
+
+  test        PsychTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([testId])
+  @@index([userId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  SCORED
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([readAt])
+  @@index([createdAt])
+}
+
+model BirthdayDigest {
+  id        String   @id @default(cuid())
+  runDate   DateTime
+  payload   Json
+  channel   String
+  createdAt DateTime @default(now())
+
+  @@index([runDate])
+  @@index([channel])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  actorRole Role?
+  action    String
+  entity    String?
+  entityId  String?
+  diff      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+  @@index([actorRole])
+}

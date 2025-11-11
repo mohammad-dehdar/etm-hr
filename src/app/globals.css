@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* RTL Support */
+[dir="rtl"] {
+  direction: rtl;
+}
+
+[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+/* Custom styles for the HR app */
+.dashboard-card {
+  @apply bg-white rounded-lg border p-6 shadow-sm;
+}
+
+.notification-unread {
+  @apply bg-blue-50 border-l-4 border-l-blue-500;
+}
+
+.notification-read {
+  @apply bg-gray-50;
+}
+
+.profile-field-icon {
+  @apply w-5 h-5 text-muted-foreground;
+}
+
+.test-progress {
+  @apply w-full bg-gray-200 rounded-full h-2;
+}
+
+.test-progress-bar {
+  @apply bg-blue-600 h-2 rounded-full transition-all duration-300;
+}
+
+.birthday-highlight {
+  @apply bg-pink-100 border-pink-300 text-pink-800;
+}
+
+.form-builder-field {
+  @apply border rounded-lg p-4 bg-white shadow-sm;
+}
+
+.test-question {
+  @apply p-4 border-b border-gray-200 last:border-b-0;
+}
+
+.likert-scale {
+  @apply flex justify-between items-center space-x-2 rtl:space-x-reverse;
+}
+
+.likert-option {
+  @apply flex-1 text-center p-2 border rounded cursor-pointer hover:bg-gray-50;
+}
+
+.likert-option.selected {
+  @apply bg-blue-100 border-blue-500 text-blue-800;
+}
