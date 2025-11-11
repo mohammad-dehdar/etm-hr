@@ -14,6 +14,10 @@ import { getProfileCompletion } from '@/lib/profile-completion';
 import { User, Brain, FileText, Calendar, Clock } from 'lucide-react';
 import { prisma } from '@/lib/db';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
 
